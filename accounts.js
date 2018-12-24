@@ -1,40 +1,42 @@
 /**
 
-@module SERO:accounts
+@module SeroCash:accounts
 */
 
 /**
-The accounts collection, with some SERO additions.
+The accounts collection, with some SeroCash additions.
 
-@class SEROAccounts
+@class SeroAccounts
 @constructor
 */
-var collection = new Mongo.Collection("sero_accounts", {
-  connection: null
-});
-SEROAccounts = _.clone(collection);
-SEROAccounts._collection = collection;
 
-if (typeof PersistentMinimongo !== "undefined")
-  new PersistentMinimongo(SEROAccounts._collection);
+var collection = new Mongo.Collection('sero_accounts', {connection: null});
+SeroAccounts = _.clone(collection);
+SeroAccounts._collection = collection;
+
+
+if(typeof PersistentMinimongo !== 'undefined')
+    new PersistentMinimongo(SeroAccounts._collection);
+
+
+SeroAccounts._watching = false;
 
 /**
 Updates the accounts balances, by watching for new blocks and checking the balance.
 
 @method _watchBalance
 */
-SEROAccounts._watchBalance = function() {
-  var _this = this;
 
-  if (this.blockSubscription) {
-    this.blockSubscription.unsubscribe();
-  }
+SeroAccounts._watchBalance = function(){
+    var _this = this;
 
-  // UPDATE SIMPLE ACCOUNTS balance on each new block
-  this.blockSubscription = web3.ser
-    .subscribe("newBlockHeaders")
-    .on("data", function() {
-      _this._updateBalance();
+    this._watching = true;
+
+    // UPDATE SIMPLE ACCOUNTS balance on each new block
+    web3.sero.filter('latest').watch(function(e, res){
+        if(!e) {
+            _this._updateBalance();
+        }
     });
 };
 
@@ -43,24 +45,29 @@ Updates the accounts balances.
 
 @method _updateBalance
 */
-SEROAccounts._updateBalance = function() {
-  var _this = this;
 
-  _.each(SEROAccounts.find({}).fetch(), function(account) {
-    web3.ser.getBalance(account.address, function(err, res) {
-      if (!err) {
-        if (res.toFixed) {
-          res = res.toFixed();
-        }
+SeroAccounts._updateBalance = function(){
+    var _this = this;
 
-        SEROAccounts.update(account._id, {
-          $set: {
-            balance: res
-          }
+    _.each(SeroAccounts.find({
+        network: _this.network,
+    }).fetch(), function(account){
+        web3.sero.getBalance(account.address, function(err, res){
+            var tempBal = 0 ;
+            if (typeof res.tkn !== 'undefined'){
+                if (typeof res.tkn.SERO !== 'undefined'){
+                    tempBal = res.tkn.SERO.toString(10);
+                }
+            }
+            if(!err) {
+                SeroAccounts.update(account._id, {
+                    $set: {
+                        balance: tempBal;
+                    }
+                });
+            }
         });
-      }
     });
-  });
 };
 
 /**
@@ -69,90 +76,163 @@ if its finds a difference between the accounts in the collection and the account
 
 @method _addAccounts
 */
-SEROAccounts._addAccounts = function() {
-  var _this = this;
 
-  // UPDATE normal accounts on start
-  web3.ser.getAccounts(function(e, accounts) {
-    if (!e) {
-      var visibleAccounts = _.pluck(SEROAccounts.find().fetch(), "address");
+SeroAccounts._addAccounts = function(){
+    var _this = this;
 
-      if (
-        !_.isEmpty(accounts) &&
-        _.difference(accounts, visibleAccounts).length === 0 &&
-        _.difference(visibleAccounts, accounts).length === 0
-      )
-        return;
+    // UPDATE normal accounts on start
+    web3.sero.getAccounts(function(e, accounts){
+        if(!e) {
+            var visibleAccounts = _.pluck(SeroAccounts.find().fetch(), 'address');
 
-      var localAccounts = SEROAccounts.findAll().fetch();
+            if (!_.isEmpty(accounts) &&
+                _.difference(accounts, visibleAccounts).length === 0 &&
+                _.difference(visibleAccounts, accounts).length === 0)
+                return;
 
-      // if the accounts are different, update the local ones
-      _.each(localAccounts, function(account) {
-        // needs to have the balance
-        if (!account.balance) return;
 
-        // set status deactivated, if it seem to be gone
-        if (!_.contains(accounts, account.address)) {
-          SEROAccounts.updateAll(account._id, {
-            $set: {
-              deactivated: true
-            }
-          });
-        } else {
-          SEROAccounts.updateAll(account._id, {
-            $unset: {
-              deactivated: ""
-            }
-          });
-        }
+            var localAccounts = SeroAccounts.findAll().fetch();
 
-        accounts = _.without(accounts, account.address);
-      });
+            // if the accounts are different, update the local ones
+            _.each(localAccounts, function (account) {
 
-      // ADD missing accounts
-      var accountsCount = visibleAccounts.length + 1;
-      _.each(accounts, function(address) {
-        web3.ser.getBalance(address, function(e, balance) {
-          if (!e) {
-            if (balance.toFixed) {
-              balance = balance.toFixed();
-            }
+                // needs to have the balance
+                if (!account.balance)
+                    return;
 
-            web3.ser.getCoinbase(function(error, coinbase) {
-              if (error) {
-                console.warn("getCoinbase error: ", error);
-                coinbase = null; // continue with null coinbase
-              }
+                // set status deactivated, if it seem to be gone
+                if (!_.contains(accounts, account.address)) {
+                    SeroAccounts.updateAll(account._id, {
+                        $set: {
+                            deactivated: true
+                        }
+                    });
+                } else {
+                    SeroAccounts.updateAll(account._id, {
+                        $unset: {
+                            deactivated: ''
+                        }
+                    });
+                }
 
-              var doc = SEROAccounts.findAll({
-                address: address
-              }).fetch()[0];
-
-              var insert = {
-                type: "account",
-                address: address,
-                balance: balance,
-                name:
-                  address === coinbase
-                    ? "Main account (SERObase)"
-                    : "Account " + accountsCount
-              };
-
-              if (doc) {
-                SEROAccounts.updateAll(doc._id, {
-                  $set: insert
-                });
-              } else {
-                SEROAccounts.insert(insert);
-              }
-
-              if (address !== coinbase) accountsCount++;
+                accounts = _.without(accounts, account.address);
             });
-          }
-        });
-      });
-    }
-  });
+
+            // ADD missing accounts
+            var accountsCount = visibleAccounts.length + 1;
+            _.each(accounts, function (address) {
+
+                web3.sero.getBalance(address, function (e, balance) {
+
+                    console.log('sero.getBalance[' + address + ']::' + balance);
+
+                    if (!e) {
+                        web3.sero.getCoinbase(function (e, coinbase) {
+                            var doc = SeroAccounts.findAll({
+                                address: address,
+                            }).fetch()[0];
+                            var tempBal = 0;
+                            if (typeof balance.tkn !== 'undefined') {
+                                if (typeof balance.tkn.SERO !== 'undefined'){
+                                    tempBal = balance.tkn.SERO;
+                                }
+                            }
+                            var insert = {
+                                type: 'account',
+                                address: address,
+                                balance: tempBal.toString(10),
+                                name: (address === coinbase) ? 'Main account (Serobase)' : 'Account ' + accountsCount
+                            };
+
+                            if (doc) {
+                                SeroAccounts.updateAll(doc._id, {
+                                    $set: insert
+                                });
+                            } else {
+                                SeroAccounts.insert(insert);
+                            }
+
+                            if (address !== coinbase)
+                                accountsCount++;
+                        });
+                    }
+                });
+            });
+
+            // if the accounts are different, update the local ones
+            _.each(localAccounts, function (account) {
+                // needs to have the balance
+                if (!account.balance) return;
+
+                // set status deactivated, if it seem to be gone
+                if (!_.contains(accounts, account.address)) {
+                    SeroAccounts.updateAll(account._id, {
+                        $set: {
+                            deactivated: true
+                        }
+                    });
+                } else {
+                    SeroAccounts.updateAll(account._id, {
+                        $unset: {
+                            deactivated: ""
+                        }
+                    });
+                }
+
+                accounts = _.without(accounts, account.address);
+            });
+
+            // ADD missing accounts
+            var accountsCount = visibleAccounts.length + 1;
+            _.each(accounts, function (address) {
+                web3.sero.getBalance(address, function (e, balance) {
+                    if (!e) {
+                        if (balance.toFixed) {
+                            balance = balance.toFixed();
+                        }
+
+                        web3.sero.getCoinbase(function (error, coinbase) {
+                            if (error) {
+                                console.warn("getCoinbase error: ", error);
+                                coinbase = null; // continue with null coinbase
+                            }
+
+                            var doc = SeroAccounts.findAll({
+                                address: address
+                            }).fetch()[0];
+
+                            var tempBal = 0;
+                            if (typeof balance.tkn !== 'undefined') {
+                                if (typeof balance.tkn.SERO !== 'undefined'){
+                                    tempBal = balance.tkn.SERO;
+                                }
+                            }
+
+                            var insert = {
+                                type: "account",
+                                address: address,
+                                balance: tempBal.toString(10),
+                                name:
+                                    address === coinbase
+                                        ? "Main account (Serobase)"
+                                        : "Account " + accountsCount
+                            };
+
+                            if (doc) {
+                                SeroAccounts.updateAll(doc._id, {
+                                    $set: insert
+                                });
+                            } else {
+                                SeroAccounts.insert(insert);
+                            }
+
+                            if (address !== coinbase) accountsCount++;
+                        });
+                    }
+                });
+            });
+        }
+    });
 };
 
 /**
@@ -164,8 +244,9 @@ Builds the query with the addition of "{deactivated: {$exists: false}}"
 @param {Object} options.includeDeactivated If set then de-activated accounts are also included.
 @return {Object} The query
 */
-SEROAccounts._addToQuery = function(args, options) {
-  var _this = this;
+
+SeroAccounts._addToQuery = function(args, options){
+    var _this = this;
 
   options = _.extend(
     {
@@ -199,8 +280,9 @@ Find all accounts, besides the deactivated ones
 @method find
 @return {Object} cursor
 */
-SEROAccounts.find = function() {
-  return this._collection.find.apply(this, this._addToQuery(arguments));
+
+SeroAccounts.find = function(){
+    return this._collection.find.apply(this, this._addToQuery(arguments));
 };
 
 /**
@@ -209,14 +291,12 @@ Find all accounts, including the deactivated ones
 @method findAll
 @return {Object} cursor
 */
-SEROAccounts.findAll = function() {
-  return this._collection.find.apply(
-    this,
-    this._addToQuery(arguments, {
-      includeDeactivated: true
-    })
-  );
-};
+
+SeroAccounts.findAll = function() {
+    return this._collection.find.apply(this, this._addToQuery(arguments, {
+        includeDeactivated: true
+    }));
+}
 
 /**
 Find one accounts, besides the deactivated ones
@@ -224,8 +304,9 @@ Find one accounts, besides the deactivated ones
 @method findOne
 @return {Object} cursor
 */
-SEROAccounts.findOne = function() {
-  return this._collection.findOne.apply(this, this._addToQuery(arguments));
+
+SeroAccounts.findOne = function(){
+    return this._collection.findOne.apply(this, this._addToQuery(arguments));
 };
 
 /**
@@ -234,8 +315,9 @@ Update accounts, besides the deactivated ones
 @method update
 @return {Object} cursor
 */
-SEROAccounts.update = function() {
-  return this._collection.update.apply(this, this._addToQuery(arguments));
+
+SeroAccounts.update = function(){
+    return this._collection.update.apply(this, this._addToQuery(arguments));
 };
 
 /**
@@ -244,14 +326,12 @@ Update accounts, including the deactivated ones
 @method updateAll
 @return {Object} cursor
 */
-SEROAccounts.updateAll = function() {
-  return this._collection.update.apply(
-    this,
-    this._addToQuery(arguments, {
-      includeDeactivated: true
-    })
-  );
-};
+
+SeroAccounts.updateAll = function() {
+    return this._collection.update.apply(this, this._addToQuery(arguments, {
+        includeDeactivated: true
+    }));
+}
 
 /**
 Update accounts, including the deactivated ones
@@ -259,40 +339,73 @@ Update accounts, including the deactivated ones
 @method upsert
 @return {Object} cursor
 */
-SEROAccounts.upsert = function() {
-  return this._collection.upsert.apply(
-    this,
-    this._addToQuery(arguments, {
-      includeDeactivated: true
-    })
-  );
-};
+
+SeroAccounts.upsert = function() {
+    return this._collection.upsert.apply(this, this._addToQuery(arguments, {
+        includeDeactivated: true
+    }));
+}
+
+/**
+Insert an account
+
+@method insert
+@return {Object} cursor
+*/
+SeroAccounts.insert = function(data) {
+    return this._collection.insert.call(this, _.extend(data, {
+        network: this.network,
+    }));
+}
+
 
 /**
 Starts fetching and watching the accounts
 
 @method init
 */
-SEROAccounts.init = function() {
-  var _this = this;
 
-  if (typeof web3 === "undefined") {
-    console.warn(
-      "SEROAccounts couldn't find web3, please make sure to instantiate a web3 object before calling SEROAccounts.init()"
-    );
-    return;
-  }
+SeroAccounts.init = function(opts) {
+    var _this = this;
 
-  Tracker.nonreactive(function() {
-    _this._addAccounts();
+    if(typeof web3 === 'undefined') {
+        console.warn('SeroAccounts couldn\'t find web3, please make sure to instantiate a web3 object before calling SeroAccounts.init()');
+        return;
+    }
 
-    _this._updateBalance();
-    _this._watchBalance();
+    if (opts && !opts.network) {
+        throw new Error('Network id not given');
+    } else if (opts && opts.network) {
+        // network id
+        _this.network = opts.network;
+    }
 
-    // check for new accounts every 2s
-    Meteor.clearInterval(_this._intervalId);
-    _this._intervalId = Meteor.setInterval(function() {
-      _this._addAccounts();
-    }, 2000);
-  });
+
+    /**
+    Overwrite web3.reset, to also stop the interval
+
+    @method web3.reset
+    */
+    web3._reset = Web3.prototype.reset;
+    web3.reset = function(keepIsSyncing){
+        Meteor.clearInterval(_this._intervalId);
+        _this._watching = false;
+        web3._reset(keepIsSyncing);
+    };
+
+    Tracker.nonreactive(function(){
+
+        _this._addAccounts();
+
+        if(!_this._watching) {
+            _this._updateBalance();
+            _this._watchBalance();
+
+            // check for new accounts every 2s
+            Meteor.clearInterval(_this._intervalId);
+            _this._intervalId = Meteor.setInterval(function(){
+                _this._addAccounts();
+            }, 2000);
+        }
+    });
 };

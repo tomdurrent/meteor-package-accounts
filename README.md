@@ -1,35 +1,35 @@
-# SERO accounts
+# SeroCash accounts
 
-Provides you with an `SEROAccounts` collection, where balances are automatically updated.
+Provides you with an `SeroAccounts` collection, where balances are automatically updated.
 Additionally the accounts are persisted in localstorage.
 
-If the SERO node removes accounts,
-the `SEROAccounts` collection will set the `deactivated: true` property to these accounts and hide them from normal queries.
+If the serocash node removes accounts,
+the `SeroAccounts` collection will set the `deactivated: true` property to these accounts and hide them from normal queries.
 
 If the Accounts should reapear in the node (e.g. the user importet those, or mist allwed them access), they will be available again,
 including all the extra properties you've set.
 
-**Note** don't use the `SEROAccounts` collection to add your own custom accounts as a reload of your application,
-or any change in `web3.ser.accounts` would hide them.
+**Note** don't use the `SeroAccounts` collection to add your own custom accounts as a reload of your application,
+or any change in `web3.sero.accounts` would hide them.
 
 ## Installation
 
-    $ meteor add SERO:accounts
+    $ meteor add serocash:accounts
 
 ## Usage
 
-Initialize Accounts on the start of your application, as soon as you have a SERO connection:
+Initialize Accounts on the start of your application, as soon as you have a serocash connection:
 
 ```js
-SEROAccounts.init();
+SeroAccounts.init();
 ```
 
-Then simply use the global `SEROAccounts` object like any other minimongo collection.
+Then simply use the global `SeroAccounts` object like any other minimongo collection.
 It provides the `.find()`, `.findOne()`, `.findAll()`, `.update()`, `.updateAll()` and `.remove()` functions e.g.:
 
 ```js
 // Get all active accounts
-var myAccounts = SEROAccounts.find().fetch();
+var myAccounts = SeroAccounts.find().fetch();
 
 [
   {
@@ -41,13 +41,13 @@ var myAccounts = SEROAccounts.find().fetch();
 ]
 
 // or
-var myPrimaryAccount = SEROAccounts.findOne({name: 'Coinbase'});
+var myPrimaryAccount = SeroAccounts.findOne({name: 'Coinbase'});
 ```
 
 #### If you want to get truly all accounts including the deactivated ones use:
 
 ```js
-var allAccounts = SEROAccounts.findAll().fetch();
+var allAccounts = SeroAccounts.findAll().fetch();
 
 [
   {
@@ -69,14 +69,12 @@ var allAccounts = SEROAccounts.findAll().fetch();
 #### If you want to update a deactivated account use:
 
 ```js
-SEROAccounts.updateAll({address: "0x990ccf8a0de58091c028d6ff76bb235ee67c1c39"}, {name: 'XYZ'}});
+SeroAccounts.updateAll({address: "0x990ccf8a0de58091c028d6ff76bb235ee67c1c39"}, {name: 'XYZ'}});
 ```
 
 #### If you manually want to activate an account to make it visible call:
 
 ```js
-SEROAccounts.updateAll(
-  { address: "0x990ccf8a0de58091c028d6ff76bb235ee67c1c39" },
-  { $unset: { deactivated: "" } }
-);
+
+SeroAccounts.updateAll({address: "0x990ccf8a0de58091c028d6ff76bb235ee67c1c39"}, {$unset: {deactivated: ''}})
 ```
