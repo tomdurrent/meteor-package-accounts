@@ -53,16 +53,16 @@ SeroAccounts._updateBalance = function(){
         network: _this.network,
     }).fetch(), function(account){
         web3.sero.getBalance(account.address, function(err, res){
-            var tempBal = 0 ;
-            if (typeof res.tkn !== 'undefined'){
-                if (typeof res.tkn.SERO !== 'undefined'){
-                    tempBal = res.tkn.SERO.toString(10);
-                }
-            }
             if(!err) {
+                var tempBal = 0 ;
+                if (typeof res.tkn !== 'undefined'){
+                    if (typeof res.tkn.SERO !== 'undefined'){
+                        tempBal = res.tkn.SERO.toString(10);
+                    }
+                }
                 SeroAccounts.update(account._id, {
                     $set: {
-                        balance: tempBal;
+                        balance: tempBal
                     }
                 });
             }
@@ -114,7 +114,6 @@ SeroAccounts._addAccounts = function(){
                         }
                     });
                 }
-
                 accounts = _.without(accounts, account.address);
             });
 
@@ -123,9 +122,6 @@ SeroAccounts._addAccounts = function(){
             _.each(accounts, function (address) {
 
                 web3.sero.getBalance(address, function (e, balance) {
-
-                    console.log('sero.getBalance[' + address + ']::' + balance);
-
                     if (!e) {
                         web3.sero.getCoinbase(function (e, coinbase) {
                             var doc = SeroAccounts.findAll({
@@ -154,79 +150,6 @@ SeroAccounts._addAccounts = function(){
 
                             if (address !== coinbase)
                                 accountsCount++;
-                        });
-                    }
-                });
-            });
-
-            // if the accounts are different, update the local ones
-            _.each(localAccounts, function (account) {
-                // needs to have the balance
-                if (!account.balance) return;
-
-                // set status deactivated, if it seem to be gone
-                if (!_.contains(accounts, account.address)) {
-                    SeroAccounts.updateAll(account._id, {
-                        $set: {
-                            deactivated: true
-                        }
-                    });
-                } else {
-                    SeroAccounts.updateAll(account._id, {
-                        $unset: {
-                            deactivated: ""
-                        }
-                    });
-                }
-
-                accounts = _.without(accounts, account.address);
-            });
-
-            // ADD missing accounts
-            var accountsCount = visibleAccounts.length + 1;
-            _.each(accounts, function (address) {
-                web3.sero.getBalance(address, function (e, balance) {
-                    if (!e) {
-                        if (balance.toFixed) {
-                            balance = balance.toFixed();
-                        }
-
-                        web3.sero.getCoinbase(function (error, coinbase) {
-                            if (error) {
-                                console.warn("getCoinbase error: ", error);
-                                coinbase = null; // continue with null coinbase
-                            }
-
-                            var doc = SeroAccounts.findAll({
-                                address: address
-                            }).fetch()[0];
-
-                            var tempBal = 0;
-                            if (typeof balance.tkn !== 'undefined') {
-                                if (typeof balance.tkn.SERO !== 'undefined'){
-                                    tempBal = balance.tkn.SERO;
-                                }
-                            }
-
-                            var insert = {
-                                type: "account",
-                                address: address,
-                                balance: tempBal.toString(10),
-                                name:
-                                    address === coinbase
-                                        ? "Main account (Serobase)"
-                                        : "Account " + accountsCount
-                            };
-
-                            if (doc) {
-                                SeroAccounts.updateAll(doc._id, {
-                                    $set: insert
-                                });
-                            } else {
-                                SeroAccounts.insert(insert);
-                            }
-
-                            if (address !== coinbase) accountsCount++;
                         });
                     }
                 });
