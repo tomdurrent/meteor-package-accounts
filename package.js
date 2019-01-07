@@ -1,7 +1,7 @@
 Package.describe({
   name: 'serocash:accounts',
   summary: 'Provides and updates the serocash accounts in the Accounts collection',
-  version: '0.2.4',
+  version: '0.2.18',
   git: 'http://github.com/tomdurrent/meteor-package-accounts'
 });
 
@@ -11,7 +11,7 @@ Package.onUse(function(api) {
   api.use("mongo@1.1.7", ["client", "server"]);
 
   api.use('frozeman:persistent-minimongo@0.1.8', 'client');
-  api.use('serocash:web3@0.2.6', ['client', 'server']);
+  api.use('serocash:web3@0.2.15', ['client', 'server']);
 
   api.export(['SeroAccounts'], ['client', 'server']);
 

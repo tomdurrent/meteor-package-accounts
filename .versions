@@ -41,8 +41,8 @@ random@1.1.0
 reload@1.2.0
 retry@1.1.0
 routepolicy@1.1.0
-serocash:accounts@0.2.4
-serocash:web3@0.2.6
+serocash:accounts@0.2.18
+serocash:web3@0.2.15
 socket-stream-client@0.2.2
 tracker@1.2.0
 underscore@1.0.10
